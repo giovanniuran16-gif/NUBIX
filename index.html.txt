@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Negocios - Tuluá</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <style>
+        /* Estilo para el modal */
+        .modal {
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+        }
+        .modal.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        /* Estilo para la notificación flotante */
+        .notification {
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+        }
+        .notification.hidden {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-3xl font-bold text-indigo-700">Tuluá Emprende</h1>
+            <p class="text-gray-500">Directorio de Productos y Servicios Locales</p>
+            <div class="mt-4 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                <input type="text" id="search-input" placeholder="Buscar negocio por nombre/desc..."
+                       class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                <select id="category-filter"
+                        class="p-2 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500 text-sm w-full sm:w-auto">
+                    </select>
+                <button onclick="openModal()"
+                        class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150 text-sm">
+                    + Registrar Negocio
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex space-x-4">
+                <button id="tab-productos" onclick="switchTab('productos')"
+                        class="py-3 px-4 font-medium text-sm border-b-2 border-indigo-600 text-indigo-600 transition duration-150 hover:bg-gray-50">
+                    Productos
+                </button>
+                <button id="tab-servicios" onclick="switchTab('servicios')"
+                        class="py-3 px-4 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition duration-150">
+                    Servicios
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div id="businesses-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <p id="loading-message" class="col-span-full text-center text-gray-500">Cargando negocios de Tuluá...</p>
+        </div>
+        <p id="no-results" class="col-span-full text-center text-gray-500 mt-8 hidden">No se encontraron negocios con los filtros aplicados.</p>
+    </main>
+
+    <div id="modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 duration-300">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Registra tu Negocio</h2>
+            <form id="business-form" onsubmit="submitBusiness(event)">
+                <div class="mb-4">
+                    <label for="name" class="block text-sm font-medium text-gray-700">Nombre del Negocio</label>
+                    <input type="text" id="name" required
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="mb-4">
+                    <label for="description" class="block text-sm font-medium text-gray-700">Descripción Corta</label>
+                    <textarea id="description" rows="2" required
+                              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="contact" class="block text-sm font-medium text-gray-700">Contacto (WhatsApp o Red Social)</label>
+                    <input type="text" id="contact" required
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="Ej: +57 300 1234567 o @tuluatienda">
+                </div>
+                <div class="mb-6">
+                    <label for="category" class="block text-sm font-medium text-gray-700">Categoría</label>
+                    <select id="category" required
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                        </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()"
+                            class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="submit-button"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150">
+                        Enviar Registro
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="notification"
+         class="notification fixed bottom-5 right-5 bg-green-500 text-white p-4 rounded-lg shadow-lg z-50 hidden">
+        Información de contacto copiada con éxito!
+    </div>
+
+    <script>
+        // ----------------------------------------------------
+        // 1. CONFIGURACIÓN DE FIREBASE
+        // **IMPORTANTE**: Reemplaza estos valores con la configuración de tu proyecto de Firebase
+        // ----------------------------------------------------
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDaKDxkuS-BBUKqyrJRQ34q0Py6MYdOVYE",
+    authDomain: "nubix-42421.firebaseapp.com",
+    projectId: "nubix-42421",
+    storageBucket: "nubix-42421.firebasestorage.app",
+    messagingSenderId: "947912756239",
+    appId: "1:947912756239:web:e862e85fe1b8c7193aa77a",
+    measurementId: "G-SCG4GLK619"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(FIREBASE_CONFIG);
+        const db = firebase.firestore();
+        const businessesCollection = db.collection('businesses_tuluá');
+
+        // ----------------------------------------------------
+        // 2. CONSTANTES Y ESTADO DE LA APLICACIÓN
+        // ----------------------------------------------------
+
+        const CATEGORIES = {
+            productos: ['Comida', 'Artesanía', 'Tecnología', 'Ropa y Accesorios'],
+            servicios: ['Servicios', 'Otro']
+        };
+
+        let activeTab = 'productos'; // Estado inicial de la pestaña
+        let allBusinesses = []; // Almacena todos los negocios de Firestore
+        let filteredBusinesses = [];
+
+        const elements = {
+            list: document.getElementById('businesses-list'),
+            searchInput: document.getElementById('search-input'),
+            categoryFilter: document.getElementById('category-filter'),
+            loadingMessage: document.getElementById('loading-message'),
+            noResults: document.getElementById('no-results'),
+            modal: document.getElementById('modal'),
+            notification: document.getElementById('notification'),
+            formCategorySelect: document.getElementById('category'),
+            tabProductos: document.getElementById('tab-productos'),
+            tabServicios: document.getElementById('tab-servicios')
+        };
+
+        // ----------------------------------------------------
+        // 3. LÓGICA DE GESTIÓN DE DATOS (CRUD)
+        // ----------------------------------------------------
+
+        /**
+         * Carga todos los negocios de Firestore y se suscribe a los cambios.
+         */
+        function loadBusinesses() {
+            elements.loadingMessage.classList.remove('hidden');
+            // Ordenar por 'likes' en orden descendente y escuchar cambios en tiempo real
+            businessesCollection.orderBy('likes', 'desc').onSnapshot((snapshot) => {
+                allBusinesses = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                elements.loadingMessage.classList.add('hidden');
+                // Al cargar/actualizar los datos, renderiza con el estado actual
+                applyFiltersAndRender();
+            }, (error) => {
+                console.error("Error al cargar negocios:", error);
+                elements.loadingMessage.textContent = 'Error al cargar los datos. Revisa la consola para más detalles.';
+            });
+        }
+
+        /**
+         * Registra un nuevo negocio en Firestore.
+         */
+        async function submitBusiness(event) {
+            event.preventDefault();
+            const button = document.getElementById('submit-button');
+            button.disabled = true;
+            button.textContent = 'Enviando...';
+
+            const name = document.getElementById('name').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const category = document.getElementById('category').value;
+            const contact = document.getElementById('contact').value.trim();
+
+            const businessData = {
+                name: name,
+                description: description,
+                category: category,
+                contact: contact,
+                location: 'Tuluá, Valle del Cauca', // Valor fijo según requisito
+                likes: 0, // Inicia en 0
+                type: CATEGORIES.productos.includes(category) ? 'productos' : 'servicios',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                await businessesCollection.add(businessData);
+                closeModal();
+                showNotification('¡Negocio registrado con éxito!', 'bg-green-500');
+            } catch (error) {
+                console.error("Error al añadir negocio: ", error);
+                showNotification('Error al registrar. Revisa la consola.', 'bg-red-500');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Enviar Registro';
+                document.getElementById('business-form').reset();
+            }
+        }
+
+        /**
+         * Incrementa el contador de "Me Gusta" en Firestore.
+         * @param {string} id - ID del documento del negocio.
+         */
+        async function incrementLike(id) {
+            const docRef = businessesCollection.doc(id);
+            try {
+                await docRef.update({
+                    likes: firebase.firestore.FieldValue.increment(1)
+                });
+            } catch (error) {
+                console.error("Error al actualizar like: ", error);
+                // Si el error es por no existir el documento, significa que el campo 'likes' no existía,
+                // podemos crearlo inicializando a 1.
+                if (error.code === 'not-found') {
+                    // Esto es poco probable si ya lo cargamos, pero es una buena práctica.
+                    docRef.set({ likes: 1 }, { merge: true });
+                }
+            }
+        }
+
+        // ----------------------------------------------------
+        // 4. LÓGICA DE INTERFAZ Y FILTRADO
+        // ----------------------------------------------------
+
+        /**
+         * Cambia la pestaña activa y actualiza el filtro de categorías.
+         * @param {string} tab - 'productos' o 'servicios'.
+         */
+        function switchTab(tab) {
+            activeTab = tab;
+            // Estilo de pestañas
+            elements.tabProductos.classList.remove('border-indigo-600', 'text-indigo-600', 'border-transparent', 'text-gray-500');
+            elements.tabServicios.classList.remove('border-indigo-600', 'text-indigo-600', 'border-transparent', 'text-gray-500');
+
+            if (tab === 'productos') {
+                elements.tabProductos.classList.add('border-indigo-600', 'text-indigo-600');
+                elements.tabServicios.classList.add('border-transparent', 'text-gray-500');
+            } else {
+                elements.tabServicios.classList.add('border-indigo-600', 'text-indigo-600');
+                elements.tabProductos.classList.add('border-transparent', 'text-gray-500');
+            }
+
+            // Actualizar filtros disponibles
+            populateCategoryFilters(CATEGORIES[activeTab]);
+            // Aplicar filtros
+            applyFiltersAndRender();
+        }
+
+        /**
+         * Llena el select de filtro de categorías y el select del formulario.
+         * @param {string[]} categories - Array de categorías para la pestaña activa.
+         */
+        function populateCategoryFilters(categories) {
+            // Filtro de la interfaz principal
+            elements.categoryFilter.innerHTML = '<option value="">Todas las Categorías</option>' +
+                categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+            // Formulario Modal (llenar todas las categorías)
+            elements.formCategorySelect.innerHTML = '<option value="" disabled selected>Selecciona una categoría</option>' +
+                CATEGORIES.productos.map(cat => `<option value="${cat}">${cat} (Producto)</option>`).join('') +
+                CATEGORIES.servicios.map(cat => `<option value="${cat}">${cat} (Servicio)</option>`).join('');
+        }
+
+        /**
+         * Aplica los filtros de búsqueda y categoría y renderiza la lista.
+         */
+        function applyFiltersAndRender() {
+            const searchText = elements.searchInput.value.toLowerCase();
+            const selectedCategory = elements.categoryFilter.value;
+
+            filteredBusinesses = allBusinesses.filter(business => {
+                // Filtro por Pestaña (Productos o Servicios)
+                if (business.type !== activeTab) return false;
+
+                // Filtro por Búsqueda de Texto
+                const matchesSearch = business.name.toLowerCase().includes(searchText) ||
+                                      business.description.toLowerCase().includes(searchText);
+
+                // Filtro por Categoría
+                const matchesCategory = !selectedCategory || business.category === selectedCategory;
+
+                return matchesSearch && matchesCategory;
+            });
+
+            renderBusinesses(filteredBusinesses);
+        }
+
+        /**
+         * Renderiza el listado de tarjetas de negocio.
+         * @param {Object[]} businesses - Lista de negocios a mostrar.
+         */
+        function renderBusinesses(businesses) {
+            elements.list.innerHTML = ''; // Limpiar lista
+            elements.noResults.classList.add('hidden');
+
+            if (businesses.length === 0) {
+                elements.noResults.classList.remove('hidden');
+                return;
+            }
+
+            businesses.forEach(business => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 overflow-hidden';
+                card.innerHTML = `
+                    <div class="p-5">
+                        <h3 class="text-xl font-semibold text-gray-900">${business.name}</h3>
+                        <p class="text-sm font-medium text-indigo-600 mt-1">${business.category}</p>
+                        <p class="text-gray-600 mt-3 text-sm">${business.description}</p>
+                        <div class="mt-4 flex justify-between items-center text-gray-500 text-sm">
+                            <span class="inline-flex items-center">📍 Tuluá, Valle del Cauca</span>
+                            <span class="inline-flex items-center font-semibold">
+                                ❤️ ${business.likes || 0} Me Gusta
+                            </span>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 border-t border-gray-200 p-4 flex justify-between space-x-3">
+                        <button onclick="handleLike('${business.id}')"
+                                class="flex-1 flex justify-center items-center space-x-2 py-2 px-4 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition duration-150 text-sm font-medium">
+                            <span class="text-lg">❤️</span>
+                            <span>Me Gusta</span>
+                        </button>
+                        <button onclick="handleContact('${business.contact}')"
+                                class="flex-1 flex justify-center items-center space-x-2 py-2 px-4 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition duration-150 text-sm font-medium">
+                            <span class="text-lg">📞</span>
+                            <span>Contactar</span>
+                        </button>
+                    </div>
+                `;
+                elements.list.appendChild(card);
+            });
+        }
+
+        // ----------------------------------------------------
+        // 5. MANEJADORES DE INTERACCIÓN
+        // ----------------------------------------------------
+
+        /**
+         * Maneja el clic en el botón "Me Gusta".
+         * @param {string} id - ID del documento del negocio.
+         */
+        function handleLike(id) {
+            incrementLike(id);
+        }
+
+        /**
+         * Copia la información de contacto al portapapeles y muestra una notificación.
+         * @param {string} contact - Texto de contacto (WhatsApp o red social).
+         */
+        function handleContact(contact) {
+            // Usar la API del portapapeles
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(contact).then(() => {
+                    showNotification('Contacto (' + contact + ') copiado!', 'bg-indigo-500');
+                }).catch(err => {
+                    console.error('Error al copiar al portapapeles:', err);
+                    // Fallback con la notificación de error
+                    showNotification('No se pudo copiar. Contacto: ' + contact, 'bg-red-500', 4000);
+                });
+            } else {
+                // Fallback para navegadores antiguos
+                const tempInput = document.createElement('textarea');
+                tempInput.value = contact;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                showNotification('Contacto (' + contact + ') copiado!', 'bg-indigo-500');
+            }
+        }
+
+
+        /**
+         * Muestra una notificación flotante.
+         * @param {string} message - Mensaje a mostrar.
+         * @param {string} bgColor - Clase de color de fondo (ej: 'bg-green-500').
+         * @param {number} duration - Duración en ms antes de ocultar (defecto 2000).
+         */
+        function showNotification(message, bgColor, duration = 2000) {
+            elements.notification.textContent = message;
+            elements.notification.className = `notification fixed bottom-5 right-5 ${bgColor} text-white p-4 rounded-lg shadow-lg z-50`;
+            elements.notification.classList.remove('hidden');
+
+            setTimeout(() => {
+                elements.notification.classList.add('hidden');
+            }, duration);
+        }
+
+        // ----------------------------------------------------
+        // 6. LÓGICA DE MODAL
+        // ----------------------------------------------------
+
+        function openModal() {
+            elements.modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            elements.modal.classList.add('hidden');
+        }
+
+        // ----------------------------------------------------
+        // 7. INICIALIZACIÓN
+        // ----------------------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicializar la aplicación
+            loadBusinesses();
+            switchTab('productos'); // Establece la pestaña inicial
+
+            // Escuchadores de eventos para filtrado
+            elements.searchInput.addEventListener('input', applyFiltersAndRender);
+            elements.categoryFilter.addEventListener('change', applyFiltersAndRender);
+
+            // Cerrar modal al hacer clic fuera
+            elements.modal.addEventListener('click', (e) => {
+                if (e.target === elements.modal) {
+                    closeModal();
+                }
+            });
+        });
+
+    </script>
+</body>
+</html>
